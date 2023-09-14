@@ -3,6 +3,7 @@ from torch.utils.data import Dataset, DataLoader
 from math import floor
 
 
+batch = 64
 num_feature = 3
 num_classes = 2
 max_sequence_length = 128
@@ -109,12 +110,9 @@ class CNNet(nn.ModuleList):
 
         union = cat(tuple(outs), 2)
         union = union.reshape(union.size(0), -1)
-
         # The "flattened" vector is passed through a fully connected layer
         out = self.fc(union)
-        # Dropout is applied
         out = self.dropout(out)
-        # Activation function is applied
         out = sigmoid(out)
 
         return out.squeeze()

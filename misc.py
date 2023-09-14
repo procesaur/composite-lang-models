@@ -84,8 +84,8 @@ def custom_acc(y_pred, y_batch):
 
 def for_crosvalid(inputs, outputs, c=5):
     chunks = []
-    nn = len(inputs)
-    n = round(nn / c)
+    nnn = len(inputs)
+    n = round(nnn / c)
     for i in range(c):
         try:
             chunks.append({"inputs": inputs[i * n:(i + 1) * n], "outputs": outputs[i * n:(i + 1) * n]})

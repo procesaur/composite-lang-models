@@ -7,7 +7,6 @@ from sklearn.metrics import f1_score, accuracy_score
 from tqdm import trange
 
 
-batch = 64
 num_feature = 3
 num_classes = 2
 max_sequence_length = 128
@@ -35,8 +34,8 @@ def multi_acc(y_predictions, y_test):
 
 def prepare_data(data, val_size):
     classes = {cls: i for i, cls in enumerate(data["train"])}
-    training_set = [(classes[cls], x for x in data["train"][cls]) for cls in data["train"]]
-    test_set = [(classes[cls], x for x in data["test"][cls]) for cls in data["test"]]
+    training_set = [[(classes[cls], x) for x in data["train"][cls]] for cls in data["train"]]
+    test_set = [[(classes[cls], x) for x in data["test"][cls]] for cls in data["test"]]
     x_train = list(zip(*training_set))[1]
     y_train = list(zip(*training_set))[0]
     x_test = list(zip(*test_set))[1]
@@ -78,7 +77,7 @@ class Perceptron(nn.Module):
             return y_prediction_list[0], round(y_probability_list[0], 4)
         return y_prediction_list[0]
 
-    def training(self, data, val_size=0.1, batch_size=64, learning_rate=0.01, epochs=10, save_path=""):
+    def train_using(self, data, val_size=0.1, batch_size=64, learning_rate=0.01, epochs=10, save_path=""):
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         train_dataset, val_dataset, test_dataset = prepare_data(data, val_size)
@@ -97,7 +96,7 @@ class Perceptron(nn.Module):
             train_epoch_acc = 0
             self.train()
             for x_train_batch, y_train_batch in train_loader:
-                x_train_batch, y_train_batch = x_train_batch.to(device), y_train_batch.to(self.device)
+                x_train_batch, y_train_batch = x_train_batch.to(self.device), y_train_batch.to(self.device)
                 optimizer.zero_grad()
 
                 y_train_predictions = self(x_train_batch)
@@ -157,7 +156,7 @@ class Perceptron(nn.Module):
         test_accuracy = accuracy_score(y_validation, y_prediction_list, normalize=True, sample_weight=None)
         test_f1 = f1_score(y_validation, y_prediction_list, average="macro")
 
-        print("acc: " + str(test_accuracy) + " , f1: " + str(test_f1))
+        return test_accuracy, test_f1
 
 
 class CNNet(nn.ModuleList):
@@ -242,7 +241,7 @@ class CNNet(nn.ModuleList):
             return y_prediction_list[0], round(y_probability_list[0], 4)
         return y_prediction_list[0]
 
-    def training(self, data, val_size=0.1, batch_size=64, learning_rate=0.01, epochs=10, save_path=""):
+    def train_using(self, data, val_size=0.1, batch_size=64, learning_rate=0.01, epochs=10, save_path=""):
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         train_dataset, val_dataset, test_dataset = prepare_data(data, val_size)
@@ -322,4 +321,4 @@ class CNNet(nn.ModuleList):
         test_accuracy = accuracy_score(y_validation, y_prediction_list, normalize=True, sample_weight=None)
         test_f1 = f1_score(y_validation, y_prediction_list, average="macro")
 
-        print("acc: " + str(test_accuracy) + " , f1: " + str(test_f1))
+        return test_accuracy, test_f1

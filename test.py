@@ -75,7 +75,7 @@ if training_and_testing:
             accuracies = []
             for n in range(cross_validation):
                 train, test = get_nth_train_test(n, cut_size, perce_data, sets)
-                acc, f1 = Perce().train_using(train, test, epochs=n_epochs)
+                acc, f1 = Perce().train_using(train, test, epochs=5)
                 accuracies.append(acc)
             results["m"+str(j)]["test"+str(i)] = accuracies
 

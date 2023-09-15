@@ -1,9 +1,9 @@
 from torch import nn, relu, cat, sigmoid, device, cuda, load as torch_load, no_grad, optim, manual_seed
-from torch import FloatTensor, LongTensor, softmax, max as torch_max, save as torch_save, log_softmax
+from torch import FloatTensor, LongTensor, softmax, max as torch_max, save as torch_save
 from torch.utils.data import Dataset, DataLoader
 from math import floor
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import f1_score, accuracy_score
+from torchmetrics import F1Score, Accuracy
 from tqdm import trange
 from random import seed
 
@@ -13,6 +13,8 @@ num_classes = 2
 max_sequence_length = 128
 manual_seed(0)
 seed(0)
+accuracy = Accuracy(task="multiclass", num_classes=num_classes)
+f1 = F1Score(task="multiclass", num_classes=num_classes)
 
 
 class DatasetMapper(Dataset):
@@ -27,21 +29,7 @@ class DatasetMapper(Dataset):
         return self.x[idx], self.y[idx]
 
 
-def multi_acc(y_predictions, y_test):
-    _, y_prediction_tags = torch_max(log_softmax(y_predictions, dim=1), dim=1)
-    correct_predictions = (y_prediction_tags == y_test).float()
-    acc = correct_predictions.sum() / len(correct_predictions)
-    acc = round(acc) * 100
-    return acc
-
-
-def prepare_data(data, val_size):
-    training_set = []
-    test_set = []
-    classes = {cls: i for i, cls in enumerate(data["train"])}
-    for cls in data["train"]:
-        training_set.extend([(classes[cls], x) for x in data["train"][cls]])
-        test_set.extend((classes[cls], x) for x in data["test"][cls])
+def prepare_data(training_set, test_set, val_size):
     x_train = list(zip(*training_set))[1]
     y_train = list(zip(*training_set))[0]
     x_test = list(zip(*test_set))[1]
@@ -51,6 +39,7 @@ def prepare_data(data, val_size):
     train_dataset = DatasetMapper(FloatTensor(x_train), LongTensor(y_train))
     val_dataset = DatasetMapper(FloatTensor(x_val), LongTensor(y_val))
     test_dataset = DatasetMapper(FloatTensor(x_test), LongTensor(y_test))
+
     return train_dataset, val_dataset, test_dataset
 
 
@@ -58,10 +47,10 @@ class Perceptron(nn.Module):
     def __init__(self, model_path=""):
         super(Perceptron, self).__init__()
         self.layer_out = nn.Linear(num_feature, num_classes)
-        self.device = device("cuda:0" if cuda.is_available() else "cpu")
         if model_path:
             self.load_state_dict(torch_load(model_path, map_location=device(self.device)))
-            self.to(self.device)
+        self.device = device("cuda:0" if cuda.is_available() else "cpu")
+        self.to(self.device)
 
     def forward(self, x):
         x = self.layer_out(x)
@@ -83,16 +72,15 @@ class Perceptron(nn.Module):
             return y_prediction_list[0], round(y_probability_list[0], 4)
         return y_prediction_list[0]
 
-    def train_using(self, data, val_size=0.1, batch_size=64, learning_rate=0.01, epochs=10, save_path=""):
+    def train_using(self, training_set, test_set, val_size=0.1, batch=64, learning_rate=0.01, epochs=10, save_path=""):
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-        train_dataset, val_dataset, test_dataset = prepare_data(data, val_size)
-        train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size)
+        accuracy.to(self.device)
+        f1.to(self.device)
+        train_dataset, val_dataset, test_dataset = prepare_data(training_set, test_set, val_size)
+        train_loader = DataLoader(dataset=train_dataset, batch_size=batch)
         val_loader = DataLoader(dataset=val_dataset, batch_size=1)
         test_loader = DataLoader(dataset=test_dataset, batch_size=1)
-
-        accuracy_stats = {'train': [], "val": []}
-        loss_stats = {'train': [], "val": []}
         best = 0
 
         epochs = trange(1, epochs)
@@ -107,46 +95,37 @@ class Perceptron(nn.Module):
 
                 y_train_predictions = self(x_train_batch)
                 train_loss = criterion(y_train_predictions, y_train_batch)
-                train_acc = multi_acc(y_train_predictions, y_train_batch)
+                train_acc = accuracy(y_train_predictions, y_train_batch).item()
                 train_loss.backward()
 
                 optimizer.step()
                 train_epoch_loss += train_loss.item()
                 train_epoch_acc += train_acc
 
+            train_loss = train_epoch_loss / len(train_loader)
+            train_acc = train_epoch_acc / len(train_loader)
+
             # VALIDATION
+            y_val_predictions = []
+            y_validation = []
             with no_grad():
 
-                val_epoch_loss = 0
-                val_epoch_acc = 0
-
                 self.eval()
+
                 for x_val_batch, y_val_batch in val_loader:
                     x_val_batch, y_val_batch = x_val_batch.to(self.device), y_val_batch.to(self.device)
 
-                    y_val_predictions = self(x_val_batch)
-                    val_loss = criterion(y_val_predictions, y_val_batch)
-                    val_acc = multi_acc(y_val_predictions, y_val_batch)
+                    y_val_predictions.append(self(x_val_batch))
+                    y_validation.append(y_val_batch)
 
-                    val_epoch_loss += val_loss.item()
-                    val_epoch_acc += val_acc
+            val_loss = criterion(cat(y_val_predictions), cat(y_validation)).item()
+            val_acc = accuracy(cat(y_val_predictions), cat(y_validation)).item()
 
-            loss_stats['train'].append(train_epoch_loss / len(train_loader))
-            loss_stats['val'].append(val_epoch_loss / len(val_loader))
-            accuracy_stats['train'].append(train_epoch_acc / len(train_loader))
-            accuracy_stats['val'].append(val_epoch_acc / len(val_loader))
-
-            train_loss = train_epoch_loss / len(train_loader)
-            val_loss = val_epoch_loss / len(val_loader)
-            train_acc = train_epoch_acc / len(train_loader)
-            val_acc = val_epoch_acc / len(val_loader)
-
-            score = val_acc
             epochs.set_description(str(round(train_loss, 3)) + "/" + str(round(val_loss, 3)) + "/"
                                    + str(round(train_acc, 3)) + "/" + str(round(val_acc, 3)))
             epochs.update()
-            if score > best:
-                best = score
+            if val_acc > best:
+                best = val_acc
                 if save_path:
                     torch_save(self.state_dict(), save_path)
 
@@ -154,13 +133,13 @@ class Perceptron(nn.Module):
         y_validation = []
         with no_grad():
             self.eval()
-            for x_val_batch, y_val_batch in test_loader:
-                x_val_batch, y_val_batch = x_val_batch.to(self.device), y_val_batch.to(self.device)
-                y_prediction_list.append(self(x_val_batch))
-                y_validation.append(y_val_batch)
+            for x_test_batch, y_test_batch in test_loader:
+                x_test_batch, y_test_batch = x_test_batch.to(self.device), y_test_batch.to(self.device)
+                y_prediction_list.append(self(x_test_batch))
+                y_validation.append(y_test_batch)
 
-        test_accuracy = accuracy_score(y_validation, y_prediction_list, normalize=True, sample_weight=None)
-        test_f1 = f1_score(y_validation, y_prediction_list, average="macro")
+        test_accuracy = accuracy(cat(y_prediction_list), cat(y_validation)).item()
+        test_f1 = f1(cat(y_prediction_list), cat(y_validation)).item()
 
         return test_accuracy, test_f1
 
@@ -247,16 +226,13 @@ class CNNet(nn.ModuleList):
             return y_prediction_list[0], round(y_probability_list[0], 4)
         return y_prediction_list[0]
 
-    def train_using(self, data, val_size=0.1, batch_size=64, learning_rate=0.01, epochs=10, save_path=""):
+    def train_using(self, training_set, test_set, val_size=0.1, batch=64, learning_rate=0.01, epochs=10, save_path=""):
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-        train_dataset, val_dataset, test_dataset = prepare_data(data, val_size)
-        train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size)
+        train_dataset, val_dataset, test_dataset = prepare_data(training_set, test_set, val_size)
+        train_loader = DataLoader(dataset=train_dataset, batch_size=batch)
         val_loader = DataLoader(dataset=val_dataset, batch_size=1)
         test_loader = DataLoader(dataset=test_dataset, batch_size=1)
-
-        accuracy_stats = {'train': [], "val": []}
-        loss_stats = {'train': [], "val": []}
         best = 0
 
         epochs = trange(1, epochs)
@@ -270,48 +246,37 @@ class CNNet(nn.ModuleList):
                 optimizer.zero_grad()
 
                 y_train_predictions = self(x_train_batch)
-
                 train_loss = criterion(y_train_predictions, y_train_batch)
-                train_acc = multi_acc(y_train_predictions, y_train_batch)
+                train_acc = accuracy(y_train_predictions, y_train_batch)
                 train_loss.backward()
 
                 optimizer.step()
                 train_epoch_loss += train_loss.item()
-                train_epoch_acc += train_acc
+                train_epoch_acc += train_acc.item()
+
+            train_loss = train_epoch_loss / len(train_loader)
+            train_acc = train_epoch_acc / len(train_loader)
 
             # VALIDATION
+            y_val_predictions = []
+            y_validation = []
             with no_grad():
-
-                val_epoch_loss = 0
-                val_epoch_acc = 0
 
                 self.eval()
                 for x_val_batch, y_val_batch in val_loader:
                     x_val_batch, y_val_batch = x_val_batch.to(self.device), y_val_batch.to(self.device)
 
-                    y_val_predictions = self(x_val_batch).unsqueeze(0)
-                    val_loss = criterion(y_val_predictions, y_val_batch)
-                    val_acc = multi_acc(y_val_predictions, y_val_batch)
+                    y_val_predictions.append(self(x_val_batch))
+                    y_validation.append(y_val_batch)
 
-                    val_epoch_loss += val_loss.item()
-                    val_epoch_acc += val_acc
+            val_loss = criterion(cat(y_val_predictions), cat(y_validation)).item()
+            val_acc = accuracy(cat(y_val_predictions), cat(y_validation)).item()
 
-            loss_stats['train'].append(train_epoch_loss / len(train_loader))
-            loss_stats['val'].append(val_epoch_loss / len(val_loader))
-            accuracy_stats['train'].append(train_epoch_acc / len(train_loader))
-            accuracy_stats['val'].append(val_epoch_acc / len(val_loader))
-
-            train_loss = train_epoch_loss / len(train_loader)
-            val_loss = val_epoch_loss / len(val_loader)
-            train_acc = train_epoch_acc / len(train_loader)
-            val_acc = val_epoch_acc / len(val_loader)
-
-            score = val_acc
             epochs.set_description(str(round(train_loss, 3)) + "/" + str(round(val_loss, 3)) + "/"
                                    + str(round(train_acc, 3)) + "/" + str(round(val_acc, 3)))
             epochs.update()
-            if score > best:
-                best = score
+            if val_acc > best:
+                best = val_acc
                 if save_path:
                     torch_save(self.state_dict(), save_path)
 
@@ -319,12 +284,12 @@ class CNNet(nn.ModuleList):
         y_validation = []
         with no_grad():
             self.eval()
-            for x_val_batch, y_val_batch in test_loader:
-                x_val_batch, y_val_batch = x_val_batch.to(self.device), y_val_batch.to(self.device)
-                y_prediction_list.append(self(x_val_batch))
-                y_validation.append(y_val_batch)
+            for x_test_batch, y_test_batch in test_loader:
+                x_test_batch, y_test_batch = x_test_batch.to(self.device), y_test_batch.to(self.device)
+                y_prediction_list.append(self(x_test_batch))
+                y_validation.append(y_test_batch)
 
-        test_accuracy = accuracy_score(y_validation, y_prediction_list, normalize=True, sample_weight=None)
-        test_f1 = f1_score(y_validation, y_prediction_list, average="macro")
+        test_accuracy = accuracy(cat(y_prediction_list), cat(y_validation)).item()
+        test_f1 = f1(cat(y_prediction_list), cat(y_validation)).item()
 
         return test_accuracy, test_f1

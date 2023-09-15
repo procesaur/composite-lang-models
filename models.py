@@ -1,15 +1,18 @@
-from torch import nn, relu, cat, sigmoid, device, cuda, load as torch_load, no_grad, optim
+from torch import nn, relu, cat, sigmoid, device, cuda, load as torch_load, no_grad, optim, manual_seed
 from torch import FloatTensor, LongTensor, softmax, max as torch_max, save as torch_save, log_softmax
 from torch.utils.data import Dataset, DataLoader
 from math import floor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, accuracy_score
 from tqdm import trange
+from random import seed
 
 
 num_feature = 3
 num_classes = 2
 max_sequence_length = 128
+manual_seed(0)
+seed(0)
 
 
 class DatasetMapper(Dataset):
@@ -33,9 +36,12 @@ def multi_acc(y_predictions, y_test):
 
 
 def prepare_data(data, val_size):
+    training_set = []
+    test_set = []
     classes = {cls: i for i, cls in enumerate(data["train"])}
-    training_set = [[(classes[cls], x) for x in data["train"][cls]] for cls in data["train"]]
-    test_set = [[(classes[cls], x) for x in data["test"][cls]] for cls in data["test"]]
+    for cls in data["train"]:
+        training_set.extend([(classes[cls], x) for x in data["train"][cls]])
+        test_set.extend((classes[cls], x) for x in data["test"][cls])
     x_train = list(zip(*training_set))[1]
     y_train = list(zip(*training_set))[0]
     x_test = list(zip(*test_set))[1]

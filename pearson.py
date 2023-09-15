@@ -3,24 +3,7 @@ from collections.abc import MutableMapping
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
-
-
-def map_outer(key):
-    if key == "procesaur/gpt2-srlat":
-        return "m1"
-    if key == "procesaur/gpt2-srlat-sem":
-        return "m2"
-    if key == "procesaur/gpt2-srlat-synt":
-        return "m3"
-
-
-def map_inner(key):
-    if key == "sr":
-        return "t1"
-    if key == "bad":
-        return "t2"
-    if key == "google":
-        return "t3"
+from data_preprocessing import map_inner, map_outer
 
 
 def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str = '.') -> MutableMapping:

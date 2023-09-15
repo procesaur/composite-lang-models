@@ -144,6 +144,16 @@ class Perceptron(nn.Module):
         return test_accuracy, test_f1
 
 
+class Perce(Perceptron):
+    def __init__(self, model_path=""):
+        super(Perceptron, self).__init__()
+        self.layer_out = nn.Linear(1, num_classes)
+        if model_path:
+            self.load_state_dict(torch_load(model_path, map_location=device(self.device)))
+        self.device = device("cuda:0" if cuda.is_available() else "cpu")
+        self.to(self.device)
+
+
 class CNNet(nn.ModuleList):
     def __init__(self, model_path=""):
         super(CNNet, self).__init__()
@@ -229,6 +239,8 @@ class CNNet(nn.ModuleList):
     def train_using(self, training_set, test_set, val_size=0.1, batch=64, learning_rate=0.01, epochs=10, save_path=""):
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        training_set = [[x[0], self.pad_inputs([x[1]])[0]] for x in training_set]
+        test_set = [[x[0], self.pad_inputs([x[1]])[0]] for x in test_set]
         train_dataset, val_dataset, test_dataset = prepare_data(training_set, test_set, val_size)
         train_loader = DataLoader(dataset=train_dataset, batch_size=batch)
         val_loader = DataLoader(dataset=val_dataset, batch_size=1)

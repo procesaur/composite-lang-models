@@ -44,8 +44,8 @@ def get_epochs_n(n):
 
 
 def multi_acc(y_pred, y_test):
-    y_pred_softmax = log_softmax(y_pred, dim=1)
-    _, y_pred_tags = torch_max(y_pred_softmax, dim=1)
+    y_pred_softmax =
+    y_pred_tags = torch_max(log_softmax(y_pred, dim=1), dim=1)[1]
 
     correct_pred = (y_pred_tags == y_test).float()
     acc = correct_pred.sum() / len(correct_pred)

@@ -180,7 +180,7 @@ class CNNet(nn.ModuleList):
         self.fc = nn.Linear(self.in_features_fc(), 2)
         if model_path:
             self.load_state_dict(torch_load(model_path, map_location=device(self.device)))
-            self.to(self.device)
+        self.to(self.device)
 
     def pad_inputs(self, inputs):
         def pad(seq):
@@ -239,6 +239,8 @@ class CNNet(nn.ModuleList):
     def train_using(self, training_set, test_set, val_size=0.1, batch=64, learning_rate=0.01, epochs=10, save_path=""):
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        accuracy.to(self.device)
+        f1.to(self.device)
         training_set = [[x[0], self.pad_inputs([x[1]])[0]] for x in training_set]
         test_set = [[x[0], self.pad_inputs([x[1]])[0]] for x in test_set]
         train_dataset, val_dataset, test_dataset = prepare_data(training_set, test_set, val_size)
@@ -278,7 +280,7 @@ class CNNet(nn.ModuleList):
                 for x_val_batch, y_val_batch in val_loader:
                     x_val_batch, y_val_batch = x_val_batch.to(self.device), y_val_batch.to(self.device)
 
-                    y_val_predictions.append(self(x_val_batch))
+                    y_val_predictions.append(self(x_val_batch).unsqueeze(0))
                     y_validation.append(y_val_batch)
 
             val_loss = criterion(cat(y_val_predictions), cat(y_validation)).item()
@@ -298,7 +300,7 @@ class CNNet(nn.ModuleList):
             self.eval()
             for x_test_batch, y_test_batch in test_loader:
                 x_test_batch, y_test_batch = x_test_batch.to(self.device), y_test_batch.to(self.device)
-                y_prediction_list.append(self(x_test_batch))
+                y_prediction_list.append(self(x_test_batch).unsqueeze(0))
                 y_validation.append(y_test_batch)
 
         test_accuracy = accuracy(cat(y_prediction_list), cat(y_validation)).item()

@@ -10,7 +10,7 @@ from random import seed
 
 num_feature = 3
 num_classes = 2
-max_sequence_length = 128
+max_sequence_length = 64
 manual_seed(0)
 seed(0)
 accuracy = Accuracy(task="multiclass", num_classes=num_classes)
@@ -155,16 +155,19 @@ class Perce(Perceptron):
 
 
 class CNNet(nn.ModuleList):
-    def __init__(self, model_path=""):
+    def __init__(self, model_path="", stride=2, out_size=32, seq_length=3, dropout=0.25, kernels=None):
         super(CNNet, self).__init__()
-        self.seq_len: int = 3
+        self.seq_len: int = seq_length
         # Model parameters
         self.embedding_size: int = max_sequence_length
         self.device = device("cuda:0" if cuda.is_available() else "cpu")
-        self.out_size: int = 32
-        self.stride: int = 3
-        self.kernels = [4, 5]
-        self.dropout = nn.Dropout(0.25)
+        self.out_size: int = out_size
+        self.stride: int = stride
+        self.dropout = nn.Dropout(dropout)
+        if kernels is None:
+            self.kernels = [3, 5]
+        else:
+            self.kernels = kernels
 
         # CNN parameters definition
         self.convolutions = []
@@ -177,7 +180,8 @@ class CNNet(nn.ModuleList):
             self.pools.append(y)
 
         # Fully connected layer definition
-        self.fc = nn.Linear(self.in_features_fc(), 2)
+        self.fc = nn.Linear(self.in_features_fc(), 32)
+        self.fc2 = nn.Linear(32, 2)
         if model_path:
             self.load_state_dict(torch_load(model_path, map_location=device(self.device)))
         self.to(self.device)
@@ -215,7 +219,9 @@ class CNNet(nn.ModuleList):
         union = union.reshape(union.size(0), -1)
         # The "flattened" vector is passed through a fully connected layer
         out = self.fc(union)
-        out = self.dropout(out)
+        out = relu(out)
+        out = self.fc2(out)
+        # out = self.dropout(out)
         out = sigmoid(out)
 
         return out.squeeze()

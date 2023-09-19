@@ -1,4 +1,4 @@
-from models import Perce, Perceptron, CNNet
+from models import Perce, Perceptron, CNNet, RNNet, RNNet2
 from json import load, dump
 
 
@@ -47,7 +47,7 @@ if training_and_testing:
         "cnn": {}
     }
 
-    n_epochs = 50
+    n_epochs = 80
     # define classification tests
     tests = [["t1", "t2"], ["t1", "t3"]]
 
@@ -124,17 +124,18 @@ if training_and_testing:
             # calculate cut size and perform cross-validation
             cut_size = round(len(data) / len(sets) / cross_validation)
             accuracies = []
-            for n in range(2, 4):
+            for n in range(cross_validation):
                 train, test = get_nth_train_test(n, cut_size, data, sets)
                 # parameters for machine translation detection
-                batch = 1024
+                batch = 512
                 learning_rate = 0.005
                 net = CNNet(stride=2, dropout=0.45, out_size=32, kernels=[3, 5])
                 if i == 0:
                     # parameters for bad sentences detection
-                    batch = 1024
+                    batch = 256
                     learning_rate = 0.01
-                    net = CNNet(stride=2, dropout=0.15, out_size=32, kernels=[3, 4, 6])
+                    # net = CNNet(stride=2, dropout=0.05, out_size=32, kernels=[4, 7], layers=[64, 16])
+                    net = RNNet2(dropout=0, hidden_size=1)
 
                 acc, f1 = net.train_using(train, test, epochs=n_epochs, learning_rate=learning_rate, batch=batch)
                 accuracies.append(acc)

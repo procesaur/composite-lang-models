@@ -1,4 +1,4 @@
-from models import Perce, Perceptron, CNNet, RNNet, RNNet2
+from models import Perce, Perceptron, CNNet, RNNet, FrankeNN
 from json import load, dump
 
 
@@ -47,7 +47,7 @@ if training_and_testing:
         "cnn": {}
     }
 
-    n_epochs = 80
+    n_epochs = 150
     # define classification tests
     tests = [["t1", "t2"], ["t1", "t3"]]
 
@@ -129,13 +129,14 @@ if training_and_testing:
                 # parameters for machine translation detection
                 batch = 512
                 learning_rate = 0.005
-                net = CNNet(stride=2, dropout=0.45, out_size=32, kernels=[3, 5])
+                net = CNNet(stride=2, out_size=8, kernels=[3, 5])
                 if i == 0:
                     # parameters for bad sentences detection
-                    batch = 256
+                    batch = 64
                     learning_rate = 0.01
-                    # net = CNNet(stride=2, dropout=0.05, out_size=32, kernels=[4, 7], layers=[64, 16])
-                    net = RNNet2(dropout=0, hidden_size=1)
+                    # net = CNNet(stride=2, out_size=8, kernels=[3, 5], layers=[])
+                    # net = RNNet(dropout=0, hidden_size=8)
+                    net = FrankeNN(stride=1, cnn_features=8, rnn_features=8, kernels=[5])
 
                 acc, f1 = net.train_using(train, test, epochs=n_epochs, learning_rate=learning_rate, batch=batch)
                 accuracies.append(acc)

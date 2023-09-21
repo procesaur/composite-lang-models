@@ -1,5 +1,5 @@
 from torch import nn, relu, cat, sigmoid, device, cuda, load as torch_load, no_grad, optim, manual_seed
-from torch import FloatTensor, LongTensor, softmax, max as torch_max, save as torch_save
+from torch import FloatTensor, LongTensor, softmax, max as torch_max, save as torch_save, clamp
 from torch.utils.data import Dataset, DataLoader
 from math import floor
 from sklearn.model_selection import train_test_split
@@ -10,11 +10,26 @@ from random import seed
 
 num_feature = 3
 num_classes = 2
-max_sequence_length = 64
+max_sequence_length = 66
+n_additional_features = 66
 manual_seed(1)
 seed(1)
 accuracy = Accuracy(task="multiclass", num_classes=num_classes)
 f1 = F1Score(task="multiclass", num_classes=num_classes)
+
+
+def prepare_data(training_set, test_set, val_size):
+    x_train = list(zip(*training_set))[1]
+    y_train = list(zip(*training_set))[0]
+    x_test = list(zip(*test_set))[1]
+    y_test = list(zip(*test_set))[0]
+    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=val_size,
+                                                      stratify=y_train, random_state=12)
+    train_dataset = DatasetMapper(FloatTensor(x_train), LongTensor(y_train))
+    val_dataset = DatasetMapper(FloatTensor(x_val), LongTensor(y_val))
+    test_dataset = DatasetMapper(FloatTensor(x_test), LongTensor(y_test))
+
+    return train_dataset, val_dataset, test_dataset
 
 
 class DatasetMapper(Dataset):
@@ -29,10 +44,31 @@ class DatasetMapper(Dataset):
         return self.x[idx], self.y[idx]
 
 
+def pad_inputs(inputs, seq_len):
+    def pad(seq):
+        length = len(seq)
+        if length > seq_len:
+            return seq[:seq_len]
+        for i in range(seq_len - length):
+            pad_value = 0
+            # pad_value = seq[i % length]
+            seq.append(pad_value)
+        return seq
+    return [[pad(x) for x in y] for y in inputs]
+
+
+def pairwise(lst):
+    it = iter(lst)
+    a = next(it, None)
+    for b in it:
+        yield a, b
+        a = b
+
+
 class NN(nn.Module):
     def evaluate(self, inputs, probability=False, perceptron=False):
         if not perceptron:
-            inputs = self.pad_inputs(inputs, self.seq_len)
+            inputs = pad_inputs(inputs, self.seq_len)
         data = DatasetMapper(FloatTensor(inputs), FloatTensor([0 for _ in inputs]))
         data_loader = DataLoader(dataset=data, batch_size=1)
         y_prediction_list = []
@@ -51,44 +87,11 @@ class NN(nn.Module):
             return y_prediction_list[0], round(y_probability_list[0], 4)
         return y_prediction_list[0]
 
-    def pairwise(self, lst):
-        it = iter(lst)
-        a = next(it, None)
-        for b in it:
-            yield a, b
-            a = b
-
     def pairwise_sub(self, lst):
         out = []
         for x in lst:
-            out.append([b-a for a, b in self.pairwise([0, *x])])
+            out.append([b-a for a, b in pairwise([0, *x])])
         return out
-
-    def pad_inputs(self, inputs, seq_len):
-        def pad(seq):
-            length = len(seq)
-            if length > seq_len:
-                return seq[:seq_len]
-            for i in range(seq_len - length):
-                pad_value = 0
-                # pad_value = seq[i % length]
-                seq.append(pad_value)
-            return seq
-        return [[pad(x) for x in y] for y in inputs]
-
-
-def prepare_data(training_set, test_set, val_size):
-    x_train = list(zip(*training_set))[1]
-    y_train = list(zip(*training_set))[0]
-    x_test = list(zip(*test_set))[1]
-    y_test = list(zip(*test_set))[0]
-    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=val_size,
-                                                      stratify=y_train, random_state=12)
-    train_dataset = DatasetMapper(FloatTensor(x_train), LongTensor(y_train))
-    val_dataset = DatasetMapper(FloatTensor(x_val), LongTensor(y_val))
-    test_dataset = DatasetMapper(FloatTensor(x_test), LongTensor(y_test))
-
-    return train_dataset, val_dataset, test_dataset
 
 
 class Perceptron(NN):
@@ -207,9 +210,9 @@ class CNNet(NN):
             self.layers = layers
 
         # CNN layers definition
-        self.pools = nn.ModuleList()
+        self.pools = []
         self.fcls = nn.ModuleList()
-        self.convolutions = nn.ModuleList()
+        self.convolutions = []
 
         for kernel in self.kernels:
             # Convolution layers definition
@@ -224,7 +227,7 @@ class CNNet(NN):
             self.pools.append(y)
 
         # Fully connected layer definition
-        for a, b in self.pairwise([self.in_features_fc(), *self.layers, num_classes]):
+        for a, b in pairwise([self.in_features_fc(), *self.layers, num_classes]):
             self.fcls.append(nn.Linear(a, b).to(self.device))
 
         if model_path:
@@ -268,8 +271,8 @@ class CNNet(NN):
         accuracy.to(self.device)
         f1.to(self.device)
 
-        training_set = [[x[0], self.pad_inputs([self.pairwise_sub(x[1])], self.seq_len)[0]] for x in training_set]
-        test_set = [[x[0], self.pad_inputs([self.pairwise_sub(x[1])], self.seq_len)[0]] for x in test_set]
+        training_set = [[x[0], pad_inputs([self.pairwise_sub(x[1])], self.seq_len)[0]] for x in training_set]
+        test_set = [[x[0], pad_inputs([self.pairwise_sub(x[1])], self.seq_len)[0]] for x in test_set]
         train_dataset, val_dataset, test_dataset = prepare_data(training_set, test_set, val_size)
         train_loader = DataLoader(dataset=train_dataset, batch_size=batch)
         val_loader = DataLoader(dataset=val_dataset, batch_size=1)
@@ -364,8 +367,8 @@ class RNNet(NN):
 
         accuracy.to(self.device)
         f1.to(self.device)
-        training_set = [[x[0], self.pad_inputs([x[1]], self.seq_len)[0]] for x in training_set]
-        test_set = [[x[0], self.pad_inputs([x[1]], self.seq_len)[0]] for x in test_set]
+        training_set = [[x[0], pad_inputs([x[1]], self.seq_len)[0]] for x in training_set]
+        test_set = [[x[0], pad_inputs([x[1]], self.seq_len)[0]] for x in test_set]
         train_dataset, val_dataset, test_dataset = prepare_data(training_set, test_set, val_size)
         train_loader = DataLoader(dataset=train_dataset, batch_size=batch)
         val_loader = DataLoader(dataset=val_dataset, batch_size=1)
@@ -431,11 +434,11 @@ class RNNet(NN):
         return test_accuracy, test_f1
 
 
-class FrankeNN(NN):
+class MultiNN(NN):
     def __init__(self, model_path="",
                  stride=2, cnn_features=8, rnn_features=8, num_channels=3, dropout=0,
                  kernels=None, layers=None):
-        super(FrankeNN, self).__init__()
+        super(MultiNN, self).__init__()
         self.device = device("cuda:0" if cuda.is_available() else "cpu")
 
         # Model parameters
@@ -475,7 +478,6 @@ class FrankeNN(NN):
             self.max_pools.append(z)
 
         num_cnn_features = self.cnn_out_features()
-        print(num_cnn_features)
         self.cnn_fc = nn.Linear(num_cnn_features, self.cnn_features, bias=False).to(self.device)
 
         # RNN layers definition
@@ -484,7 +486,7 @@ class FrankeNN(NN):
         # Fully connected layers definition
         self.fcl = nn.ModuleList()
 
-        for a, b in self.pairwise([self.cnn_features+self.rnn_features, *self.layers, num_classes]):
+        for a, b in pairwise([self.cnn_features+self.rnn_features+n_additional_features, *self.layers, num_classes]):
             self.fcl.append(nn.Linear(a, b).to(self.device))
 
         if model_path:
@@ -493,7 +495,10 @@ class FrankeNN(NN):
 
     def forward(self, x):
         # ensure float
-        x = x.float()
+        x = x.float().swapaxes(0, 1)
+        # separate standard and additional features
+        add = x[self.num_channels:].swapaxes(0, 1).squeeze(1)
+        x = x[:self.num_channels].swapaxes(0, 1)
 
         # cnn
         cnn_outs = []
@@ -518,12 +523,12 @@ class FrankeNN(NN):
         # flatten rnn features
         rnn_outs = cat(tuple(rnn_outs), 2)
         rnn_outs = rnn_outs.reshape(rnn_outs.size(0), -1)
-   
-        out = cat((cnn_outs, rnn_outs), dim=1)
+
+        out = cat((cnn_outs, rnn_outs, add), dim=1)
 
         # The "flattened" vector is passed through a fully connected layers
         for fc in self.fcl:
-            out = relu(out)
+            # out = relu(out)
             out = fc(out)
 
         out = self.dropout(out)
@@ -531,13 +536,19 @@ class FrankeNN(NN):
 
         return out.squeeze()
 
+    def pack_features(self, arr):
+        # additional_features = features_extraction(arr)[1]
+        padded_input = pad_inputs([arr], self.seq_len)[0]
+        # padded_input.extend(additional_features)
+        return padded_input
+
     def train_using(self, training_set, test_set, val_size=0.1, batch=64, learning_rate=0.01, epochs=10, save_path=""):
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         accuracy.to(self.device)
         f1.to(self.device)
-        training_set = [[x[0], self.pad_inputs([x[1]], self.seq_len)[0]] for x in training_set]
-        test_set = [[x[0], self.pad_inputs([x[1]], self.seq_len)[0]] for x in test_set]
+        training_set = [[x[0], self.pack_features(x[1])] for x in training_set]
+        test_set = [[x[0], self.pack_features(x[1])] for x in test_set]
         # training_set = [[x[0], self.pad_inputs([self.pairwise_sub(x[1])], self.seq_len)[0]] for x in training_set]
         # test_set = [[x[0], self.pad_inputs([self.pairwise_sub(x[1])], self.seq_len)[0]] for x in test_set]
         train_dataset, val_dataset, test_dataset = prepare_data(training_set, test_set, val_size)

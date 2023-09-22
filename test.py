@@ -1,4 +1,4 @@
-from models import Perce, Perceptron, CNNet, RNNet, MultiNN
+from models import Perce, Perceptron, CNNet, MultiNN
 from json import load, dump
 
 
@@ -44,10 +44,10 @@ if training_and_testing:
         "m1": {},
         "m2": {},
         "perceptron": {},
-        "cnn": {}
+        "full": {}
     }
 
-    n_epochs = 20
+    n_epochs = 100
     # define classification tests
     tests = [["t1", "t2"], ["t1", "t3"]]
 
@@ -115,11 +115,14 @@ if training_and_testing:
         with open("data/prob_vectors_processed.json", "r") as jf:
             json_data = load(jf)
 
+        with open("data/prob_vectors_processed_addon.json", "r") as jfa:
+            json_data_added = load(jfa)
+
         for i, sets in enumerate(tests):
             print("test " + str(i))
             set_map = json_data["sets"]
             sets = [list(set_map.values()).index(x) for x in sets]
-            data = [x for x in json_data["data"] if x[0] in sets]
+            data = [(x[0], [*x[1], y]) for x, y in zip(json_data["data"], json_data_added["data"]) if x[0] in sets]
 
             # calculate cut size and perform cross-validation
             cut_size = round(len(data) / len(sets) / cross_validation)
@@ -127,19 +130,19 @@ if training_and_testing:
             for n in range(cross_validation):
                 train, test = get_nth_train_test(n, cut_size, data, sets)
                 # parameters for machine translation detection
-                batch = 512
+                batch = 32
                 learning_rate = 0.005
                 net = MultiNN(stride=1, cnn_features=8, rnn_features=8, kernels=[5])
                 if i == 0:
                     # parameters for bad sentences detection
-                    batch = 64
-                    learning_rate = 0.01
+                    batch = 128
+                    learning_rate = 0.005
                     # net = CNNet(stride=2, out_size=8, kernels=[3, 5], layers=[])
                     # net = RNNet(dropout=0, hidden_size=8)
-                    net = MultiNN(stride=1, cnn_features=1, rnn_features=1, kernels=[5])
+                    net = MultiNN(stride=1, cnn_features=8, rnn_features=8, kernels=[5], layers=[32])
 
                 acc, f1 = net.train_using(train, test, epochs=n_epochs, learning_rate=learning_rate, batch=batch)
                 accuracies.append(acc)
-            results["cnn"]["test" + str(i)] = accuracies
+            results["full"]["test" + str(i)] = accuracies
 
         save_results(results)

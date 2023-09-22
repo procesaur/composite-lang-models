@@ -1,5 +1,5 @@
 from torch import nn, relu, cat, sigmoid, device, cuda, load as torch_load, no_grad, optim, manual_seed
-from torch import FloatTensor, LongTensor, softmax, max as torch_max, save as torch_save, clamp
+from torch import FloatTensor, LongTensor, softmax, max as torch_max, save as torch_save
 from torch.utils.data import Dataset, DataLoader
 from math import floor
 from sklearn.model_selection import train_test_split
@@ -44,6 +44,14 @@ class DatasetMapper(Dataset):
         return self.x[idx], self.y[idx]
 
 
+def pairwise(lst):
+    it = iter(lst)
+    a = next(it, None)
+    for b in it:
+        yield a, b
+        a = b
+
+
 def pad_inputs(inputs, seq_len):
     def pad(seq):
         length = len(seq)
@@ -55,14 +63,6 @@ def pad_inputs(inputs, seq_len):
             seq.append(pad_value)
         return seq
     return [[pad(x) for x in y] for y in inputs]
-
-
-def pairwise(lst):
-    it = iter(lst)
-    a = next(it, None)
-    for b in it:
-        yield a, b
-        a = b
 
 
 class NN(nn.Module):
@@ -86,12 +86,6 @@ class NN(nn.Module):
         if probability:
             return y_prediction_list[0], round(y_probability_list[0], 4)
         return y_prediction_list[0]
-
-    def pairwise_sub(self, lst):
-        out = []
-        for x in lst:
-            out.append([b-a for a, b in pairwise([0, *x])])
-        return out
 
 
 class Perceptron(NN):
@@ -270,9 +264,8 @@ class CNNet(NN):
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         accuracy.to(self.device)
         f1.to(self.device)
-
-        training_set = [[x[0], pad_inputs([self.pairwise_sub(x[1])], self.seq_len)[0]] for x in training_set]
-        test_set = [[x[0], pad_inputs([self.pairwise_sub(x[1])], self.seq_len)[0]] for x in test_set]
+        training_set = [[x[0], self.pack_features(x[1])] for x in training_set]
+        test_set = [[x[0], self.pack_features(x[1])] for x in test_set]
         train_dataset, val_dataset, test_dataset = prepare_data(training_set, test_set, val_size)
         train_loader = DataLoader(dataset=train_dataset, batch_size=batch)
         val_loader = DataLoader(dataset=val_dataset, batch_size=1)
@@ -537,9 +530,7 @@ class MultiNN(NN):
         return out.squeeze()
 
     def pack_features(self, arr):
-        # additional_features = features_extraction(arr)[1]
         padded_input = pad_inputs([arr], self.seq_len)[0]
-        # padded_input.extend(additional_features)
         return padded_input
 
     def train_using(self, training_set, test_set, val_size=0.1, batch=64, learning_rate=0.01, epochs=10, save_path=""):
@@ -549,8 +540,6 @@ class MultiNN(NN):
         f1.to(self.device)
         training_set = [[x[0], self.pack_features(x[1])] for x in training_set]
         test_set = [[x[0], self.pack_features(x[1])] for x in test_set]
-        # training_set = [[x[0], self.pad_inputs([self.pairwise_sub(x[1])], self.seq_len)[0]] for x in training_set]
-        # test_set = [[x[0], self.pad_inputs([self.pairwise_sub(x[1])], self.seq_len)[0]] for x in test_set]
         train_dataset, val_dataset, test_dataset = prepare_data(training_set, test_set, val_size)
         train_loader = DataLoader(dataset=train_dataset, batch_size=batch)
         val_loader = DataLoader(dataset=val_dataset, batch_size=1)

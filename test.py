@@ -1,4 +1,4 @@
-from models import Perce, Perceptron, CNNet, MultiNN
+from models import Perce, Perceptron, MultiNN
 from json import load, dump
 
 
@@ -26,18 +26,6 @@ def get_nth_train_test(ordinal, cut, lst, classes):
     return train_set, test_set
 
 
-if test_net_outputs:
-    model_path = "D:/aplikacije_mihailo/Parallel-language-models/nets/sem-ord.pt"
-    inputs = [[0, 0.1, 0.1]]
-    result = Perceptron(model_path).evaluate(inputs, True)
-    print(result)
-
-    model_path = "D:/aplikacije_mihailo/Parallel-language-models/nets/general_cnn.pt"
-    inputs = [[[0.1, 0.2, 0.1], [0.1], [0.9]]]
-    result = CNNet(model_path).evaluate(inputs, True)
-    print(result)
-
-
 if training_and_testing:
     results = {
         "m0": {},
@@ -47,13 +35,16 @@ if training_and_testing:
         "full": {}
     }
 
-    n_epochs = 100
+    with open("data/duplicates.json", "r") as djf:
+        duplicates = load(djf)
+
+    n_epochs = 75
     # define classification tests
     tests = [["t1", "t2"], ["t1", "t3"]]
 
-    test1 = False
-    test2 = False
-    test3 = True
+    test1 = True
+    test2 = True
+    test3 = False
 
     if test1 or test2:
         # test 1 > standalone models
@@ -61,50 +52,42 @@ if training_and_testing:
         with open("data/probabilities_processed.json", "r") as jf:
             json_data = load(jf)
 
-    if test1:
-        print("standalone models")
         for i, sets in enumerate(tests):
             print("test " + str(i))
             set_map = json_data["sets"]
             sets = [list(set_map.values()).index(x) for x in sets]
-            data = [x for x in json_data["data"] if x[0] in sets]
+            duplicate = [x for x in duplicates[str(i)]]
+            duplicate.extend([x+len(json_data)*(i+1) for x in duplicates[str(i)]])
+            data = [x for i, x in enumerate(json_data["data"]) if x[0] in sets and i not in duplicate]
 
-            # single out each model data
-            perce_data0 = [[x[0], [x[1][0]]] for x in data]
-            perce_data1 = [[x[0], [x[1][1]]] for x in data]
-            perce_data2 = [[x[0], [x[1][2]]] for x in data]
+            if test1:
+                print("standalone models")
+                # single out each model data
+                perce_data0 = [[x[0], [x[1][0]]] for x in data]
+                perce_data1 = [[x[0], [x[1][1]]] for x in data]
+                perce_data2 = [[x[0], [x[1][2]]] for x in data]
 
-            # calculate cut size and perform cross-validation
-            cut_size = round(len(data)/len(sets)/cross_validation)
+                # calculate cut size and perform cross-validation
+                cut_size = round(len(data)/len(sets)/cross_validation)
 
-            for j, perce_data in enumerate([perce_data0, perce_data1, perce_data2]):
+                for j, perce_data in enumerate([perce_data0, perce_data1, perce_data2]):
+                    accuracies = []
+                    for n in range(cross_validation):
+                        train, test = get_nth_train_test(n, cut_size, perce_data, sets)
+                        acc, f1 = Perce().train_using(train, test, epochs=n_epochs)
+                        accuracies.append(acc)
+                    results["m"+str(j)]["test"+str(i)] = accuracies
+
+            if test2:
+                print("perceptron")
+                # calculate cut size and perform cross-validation
+                cut_size = round(len(data) / len(sets) / cross_validation)
                 accuracies = []
                 for n in range(cross_validation):
-                    train, test = get_nth_train_test(n, cut_size, perce_data, sets)
-                    acc, f1 = Perce().train_using(train, test, epochs=n_epochs)
+                    train, test = get_nth_train_test(n, cut_size, data, sets)
+                    acc, f1 = Perceptron().train_using(train, test, epochs=n_epochs)
                     accuracies.append(acc)
-                results["m"+str(j)]["test"+str(i)] = accuracies
-
-        save_results(results)
-
-    if test2:
-        # test 2 > perceptron
-        print("perceptron")
-        # data already loaded
-        for i, sets in enumerate(tests):
-            print("test " + str(i))
-            set_map = json_data["sets"]
-            sets = [list(set_map.values()).index(x) for x in sets]
-            data = [x for x in json_data["data"] if x[0] in sets]
-
-            # calculate cut size and perform cross-validation
-            cut_size = round(len(data) / len(sets) / cross_validation)
-            accuracies = []
-            for n in range(cross_validation):
-                train, test = get_nth_train_test(n, cut_size, data, sets)
-                acc, f1 = Perceptron().train_using(train, test, epochs=n_epochs)
-                accuracies.append(acc)
-            results["perceptron"]["test" + str(i)] = accuracies
+                results["perceptron"]["test" + str(i)] = accuracies
 
         save_results(results)
 

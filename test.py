@@ -38,13 +38,13 @@ if training_and_testing:
     with open("data/duplicates.json", "r") as djf:
         duplicates = load(djf)
 
-    n_epochs = 75
+    n_epochs = 50
     # define classification tests
     tests = [["t1", "t2"], ["t1", "t3"]]
 
-    test1 = True
-    test2 = True
-    test3 = False
+    test1 = False
+    test2 = False
+    test3 = True
 
     if test1 or test2:
         # test 1 > standalone models
@@ -57,7 +57,7 @@ if training_and_testing:
             set_map = json_data["sets"]
             sets = [list(set_map.values()).index(x) for x in sets]
             duplicate = [x for x in duplicates[str(i)]]
-            duplicate.extend([x+len(json_data)*(i+1) for x in duplicates[str(i)]])
+            duplicate.extend([x+len(json_data["data"])/3*(i+1) for x in duplicates[str(i)]])
             data = [x for i, x in enumerate(json_data["data"]) if x[0] in sets and i not in duplicate]
 
             if test1:
@@ -105,24 +105,28 @@ if training_and_testing:
             print("test " + str(i))
             set_map = json_data["sets"]
             sets = [list(set_map.values()).index(x) for x in sets]
-            data = [(x[0], [*x[1], y]) for x, y in zip(json_data["data"], json_data_added["data"]) if x[0] in sets]
+            duplicate = [x for x in duplicates[str(i)]]
+            duplicate.extend([x+len(json_data["data"])/3*(i+1) for x in duplicates[str(i)]])
+            data = [(x[0], [*x[1], y]) for i, (x, y) in enumerate(zip(json_data["data"], json_data_added["data"]))
+                    if x[0] in sets and i not in duplicate]
 
+            # data = [x for i, x in enumerate(json_data["data"]) if x[0] in sets and i not in duplicate]
             # calculate cut size and perform cross-validation
             cut_size = round(len(data) / len(sets) / cross_validation)
             accuracies = []
             for n in range(cross_validation):
                 train, test = get_nth_train_test(n, cut_size, data, sets)
                 # parameters for machine translation detection
-                batch = 32
-                learning_rate = 0.005
-                net = MultiNN(stride=1, cnn_features=8, rnn_features=8, kernels=[5])
+                batch = 64
+                learning_rate = 0.008
+                net = MultiNN(stride=1, cnn_features=8, rnn_features=8, kernels=[5], layers=[8])
                 if i == 0:
                     # parameters for bad sentences detection
-                    batch = 128
-                    learning_rate = 0.005
+                    batch = 64
+                    learning_rate = 0.007
                     # net = CNNet(stride=2, out_size=8, kernels=[3, 5], layers=[])
                     # net = RNNet(dropout=0, hidden_size=8)
-                    net = MultiNN(stride=1, cnn_features=8, rnn_features=8, kernels=[5], layers=[32])
+                    net = MultiNN(stride=1, cnn_features=8, rnn_features=8, kernels=[5], layers=[8])
 
                 acc, f1 = net.train_using(train, test, epochs=n_epochs, learning_rate=learning_rate, batch=batch)
                 accuracies.append(acc)

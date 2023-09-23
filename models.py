@@ -12,8 +12,8 @@ num_feature = 3
 num_classes = 2
 max_sequence_length = 66
 n_additional_features = 66
-manual_seed(1)
-seed(1)
+manual_seed(0)
+seed(0)
 accuracy = Accuracy(task="multiclass", num_classes=num_classes)
 f1 = F1Score(task="multiclass", num_classes=num_classes)
 
@@ -204,9 +204,9 @@ class CNNet(NN):
             self.layers = layers
 
         # CNN layers definition
-        self.pools = []
+        self.pools = nn.ModuleList()
         self.fcls = nn.ModuleList()
-        self.convolutions = []
+        self.convolutions = nn.ModuleList()
 
         for kernel in self.kernels:
             # Convolution layers definition
@@ -471,7 +471,8 @@ class MultiNN(NN):
             self.max_pools.append(z)
 
         num_cnn_features = self.cnn_out_features()
-        self.cnn_fc = nn.Linear(num_cnn_features, self.cnn_features, bias=False).to(self.device)
+        self.cnn_fc = nn.Linear(num_cnn_features, self.cnn_features).to(self.device)
+        self.add_fc = nn.Linear(n_additional_features-self.num_channels, self.cnn_features).to(self.device)
 
         # RNN layers definition
         self.rnn = nn.RNN(input_size=num_channels, hidden_size=self.rnn_features, dropout=dropout)
@@ -479,7 +480,7 @@ class MultiNN(NN):
         # Fully connected layers definition
         self.fcl = nn.ModuleList()
 
-        for a, b in pairwise([self.cnn_features+self.rnn_features+n_additional_features, *self.layers, num_classes]):
+        for a, b in pairwise([self.cnn_features*2+self.rnn_features+self.num_channels, *self.layers, num_classes]):
             self.fcl.append(nn.Linear(a, b).to(self.device))
 
         if model_path:
@@ -490,7 +491,7 @@ class MultiNN(NN):
         # ensure float
         x = x.float().swapaxes(0, 1)
         # separate standard and additional features
-        add = x[self.num_channels:].swapaxes(0, 1).squeeze(1)
+        add = x[self.num_channels:].swapaxes(0, 1).squeeze(1)*2
         x = x[:self.num_channels].swapaxes(0, 1)
 
         # cnn
@@ -512,12 +513,16 @@ class MultiNN(NN):
         cnn_outs = cat(tuple(cnn_outs), 2)
         cnn_outs = cnn_outs.reshape(cnn_outs.size(0), -1)
         cnn_outs = self.cnn_fc(cnn_outs)
+        cnn_outs = relu(cnn_outs)
+
+        add_out = self.add_fc(add[:, :63])
+        add_out = relu(add_out)
 
         # flatten rnn features
         rnn_outs = cat(tuple(rnn_outs), 2)
         rnn_outs = rnn_outs.reshape(rnn_outs.size(0), -1)
 
-        out = cat((cnn_outs, rnn_outs, add), dim=1)
+        out = cat((cnn_outs, rnn_outs, add_out, add[:, 63:]), dim=1)
 
         # The "flattened" vector is passed through a fully connected layers
         for fc in self.fcl:

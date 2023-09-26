@@ -9,9 +9,10 @@ baseline = ["m0", "m1", "m2"]
 tests = ["test0", "test1"]
 
 
-res_files = ["data/results.json"]
+res_file = "data/results.json"
 
-for res_file in res_files:
+
+def results():
     with open(res_file, "r") as jf:
         results = load(jf)
 

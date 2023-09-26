@@ -1,6 +1,7 @@
 from models import Perce, Perceptron, MultiNN
 from json import load, dump
 from random import shuffle, seed
+from results import results
 
 
 seed(0)
@@ -139,3 +140,6 @@ if training_and_testing:
             results["full"]["test" + str(i)] = accuracies
 
         save_results(results)
+
+
+results()

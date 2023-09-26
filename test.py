@@ -30,13 +30,17 @@ def get_nth_train_test(ordinal, cut, lst, classes):
 
 
 if training_and_testing:
-    results = {
-        "m0": {},
-        "m1": {},
-        "m2": {},
-        "perceptron": {},
-        "full": {}
-    }
+    try:
+        with open("data/results.json", "r") as rjf:
+            results = load(rjf)
+    except:
+        results = {
+            "m0": {},
+            "m1": {},
+            "m2": {},
+            "perceptron": {},
+            "full": {}
+        }
 
     with open("data/duplicates.json", "r") as djf:
         duplicates = load(djf)
@@ -46,8 +50,8 @@ if training_and_testing:
     tests = [["t1", "t2"], ["t1", "t3"]]
 
     test1 = True
-    test2 = True
-    test3 = True
+    test2 = False
+    test3 = False
 
     if test1 or test2:
         # test 1 > standalone models

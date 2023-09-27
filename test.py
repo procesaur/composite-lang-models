@@ -1,7 +1,7 @@
 from models import Perce, Perceptron, MultiNN
 from json import load, dump
 from random import shuffle, seed
-from results import results
+from results import results as print_results
 
 
 seed(0)
@@ -133,7 +133,7 @@ if training_and_testing:
                     batch = 64
                     learning_rate = 0.007
                     n_epochs = 50
-                    net = MultiNN(stride=2, cnn_features=8, rnn_features=8, kernels=[5], layers=[8])
+                    net = MultiNN(stride=2, cnn_features=8, rnn_features=4, kernels=[5], layers=[12])
 
                 acc, f1 = net.train_using(train, test, epochs=n_epochs, learning_rate=learning_rate, batch=batch)
                 accuracies.append(acc)
@@ -142,4 +142,4 @@ if training_and_testing:
         save_results(results)
 
 
-results()
+print_results()

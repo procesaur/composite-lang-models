@@ -31,3 +31,6 @@ def results():
         print("perceptron err decrease: ", round(1-(1-acc1)/base_err, 4))
         print("full acc increase: ", round(acc2/base_max-1, 4))
         print("full err decrease: ", round(1-(1-acc2)/base_err, 4))
+
+
+results()

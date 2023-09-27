@@ -12,6 +12,7 @@ num_feature = 3
 num_classes = 2
 max_sequence_length = 66
 n_additional_features = 66
+cuda.manual_seed(0)
 manual_seed(0)
 seed(0)
 accuracy = Accuracy(task="multiclass", num_classes=num_classes)
@@ -70,7 +71,7 @@ class NN(nn.Module):
         if not perceptron:
             inputs = pad_inputs(inputs, self.seq_len)
         data = DatasetMapper(FloatTensor(inputs), FloatTensor([0 for _ in inputs]))
-        data_loader = DataLoader(dataset=data, batch_size=1)
+        data_loader = DataLoader(dataset=data, batch_size=1, worker_seed=0)
         y_prediction_list = []
         y_probability_list = []
         with no_grad():
@@ -107,9 +108,9 @@ class Perceptron(NN):
         accuracy.to(self.device)
         f1.to(self.device)
         train_dataset, val_dataset, test_dataset = prepare_data(training_set, test_set, val_size)
-        train_loader = DataLoader(dataset=train_dataset, batch_size=batch)
-        val_loader = DataLoader(dataset=val_dataset, batch_size=1)
-        test_loader = DataLoader(dataset=test_dataset, batch_size=1)
+        train_loader = DataLoader(dataset=train_dataset, batch_size=batch, worker_seed=0)
+        val_loader = DataLoader(dataset=val_dataset, batch_size=1, worker_seed=0)
+        test_loader = DataLoader(dataset=test_dataset, batch_size=1, worker_seed=0)
         best = 0
 
         epochs = trange(1, epochs)
@@ -300,9 +301,9 @@ class MultiNN(NN):
         training_set = [[x[0], self.pack_features(x[1])] for x in training_set]
         test_set = [[x[0], self.pack_features(x[1])] for x in test_set]
         train_dataset, val_dataset, test_dataset = prepare_data(training_set, test_set, val_size)
-        train_loader = DataLoader(dataset=train_dataset, batch_size=batch)
-        val_loader = DataLoader(dataset=val_dataset, batch_size=1)
-        test_loader = DataLoader(dataset=test_dataset, batch_size=1)
+        train_loader = DataLoader(dataset=train_dataset, batch_size=batch, worker_seed=0)
+        val_loader = DataLoader(dataset=val_dataset, batch_size=1, worker_seed=0)
+        test_loader = DataLoader(dataset=test_dataset, batch_size=1, worker_seed=0)
         best = 0
 
         epochs = trange(1, epochs)

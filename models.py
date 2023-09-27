@@ -1,11 +1,12 @@
 from torch import nn, relu, cat, sigmoid, device, cuda, load as torch_load, no_grad, optim, manual_seed
-from torch import FloatTensor, LongTensor, softmax, max as torch_max, save as torch_save
+from torch import FloatTensor, LongTensor, softmax, max as torch_max, save as torch_save, Generator
 from torch.utils.data import Dataset, DataLoader
 from math import floor
 from sklearn.model_selection import train_test_split
 from torchmetrics import F1Score, Accuracy
 from tqdm import trange
 from random import seed
+from numpy.random import seed as npseed
 
 
 num_feature = 3
@@ -53,6 +54,16 @@ def pairwise(lst):
         a = b
 
 
+def seed_worker(worker_id):
+    worker_seed = 0
+    npseed(worker_seed)
+    seed(worker_seed)
+
+
+g = Generator()
+g.manual_seed(0)
+
+
 def pad_inputs(inputs, seq_len):
     def pad(seq):
         length = len(seq)
@@ -71,7 +82,7 @@ class NN(nn.Module):
         if not perceptron:
             inputs = pad_inputs(inputs, self.seq_len)
         data = DatasetMapper(FloatTensor(inputs), FloatTensor([0 for _ in inputs]))
-        data_loader = DataLoader(dataset=data, batch_size=1, worker_seed=0)
+        data_loader = DataLoader(dataset=data, batch_size=1, worker_init_fn=seed_worker)
         y_prediction_list = []
         y_probability_list = []
         with no_grad():
@@ -108,9 +119,9 @@ class Perceptron(NN):
         accuracy.to(self.device)
         f1.to(self.device)
         train_dataset, val_dataset, test_dataset = prepare_data(training_set, test_set, val_size)
-        train_loader = DataLoader(dataset=train_dataset, batch_size=batch, worker_seed=0)
-        val_loader = DataLoader(dataset=val_dataset, batch_size=1, worker_seed=0)
-        test_loader = DataLoader(dataset=test_dataset, batch_size=1, worker_seed=0)
+        train_loader = DataLoader(dataset=train_dataset, batch_size=batch, worker_init_fn=seed_worker)
+        val_loader = DataLoader(dataset=val_dataset, batch_size=1, worker_init_fn=seed_worker)
+        test_loader = DataLoader(dataset=test_dataset, batch_size=1, worker_init_fn=seed_worker)
         best = 0
 
         epochs = trange(1, epochs)
@@ -301,9 +312,9 @@ class MultiNN(NN):
         training_set = [[x[0], self.pack_features(x[1])] for x in training_set]
         test_set = [[x[0], self.pack_features(x[1])] for x in test_set]
         train_dataset, val_dataset, test_dataset = prepare_data(training_set, test_set, val_size)
-        train_loader = DataLoader(dataset=train_dataset, batch_size=batch, worker_seed=0)
-        val_loader = DataLoader(dataset=val_dataset, batch_size=1, worker_seed=0)
-        test_loader = DataLoader(dataset=test_dataset, batch_size=1, worker_seed=0)
+        train_loader = DataLoader(dataset=train_dataset, batch_size=batch, worker_init_fn=seed_worker)
+        val_loader = DataLoader(dataset=val_dataset, batch_size=1, worker_init_fn=seed_worker)
+        test_loader = DataLoader(dataset=test_dataset, batch_size=1, worker_init_fn=seed_worker)
         best = 0
 
         epochs = trange(1, epochs)

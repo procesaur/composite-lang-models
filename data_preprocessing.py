@@ -46,34 +46,31 @@ def features_extraction(arr):
             a = [0]
         a = np.array(a)
         # TIME DOMAIN
-        features.extend(['MIN', 'MAX', 'MEAN', 'RMS', 'VAR', 'STD', 'POWER', 'PEAK', 'P2P', 'CREST FACTOR', 'SKEW',
-                         'KURTOSIS', 'FORM_f', 'Pulse'])
+        features.extend(['min', 'max', 'p2p', 'mean', 'rms', 'var', 'sd', 'crest', 'form', 'pulse', 'skew', 'kurtosis'])
+        rms = np.sqrt(np.mean(a ** 2))
         values.extend([np.min(a),
                        np.max(a),
+                       np.ptp(a),
                        np.mean(a),
-                       np.sqrt(np.mean(a ** 2)),
+                       rms,
                        np.var(a),
                        np.std(a),
-                       np.mean(a ** 2),
-                       np.max(np.abs(a)),
-                       np.ptp(a),
-                       np.max(np.abs(a)) / np.sqrt(np.mean(a ** 2)),
+                       np.max(a) / rms,
+                       rms / np.mean(a),
+                       np.max(a) / np.mean(a),
                        stats.skew(a),
-                       stats.kurtosis(a),
-                       np.sqrt(np.mean(a ** 2)) / np.mean(a),
-                       np.max(np.abs(a)) / np.mean(a)])
+                       stats.kurtosis(a)])
 
         # FREQ DOMAIN
         fourier = fft(a)
         spectrum = np.abs(fourier ** 2) / len(a)
-        features.extend(['MAX_f', 'SUM_f', 'MEAN_f', 'VAR_f', 'PEAK_f', 'SKEW_f', 'KURTOSIS_f'])
+        features.extend(['max_f', 'mean_f', 'var_f', 'peak_f', 'skew_f', 'kurtosis_f'])
         values.extend([np.max(spectrum),
-                       np.sum(spectrum),
                        np.mean(spectrum),
                        np.var(spectrum),
                        np.max(np.abs(spectrum)),
-                       stats.skew(a),
-                       stats.kurtosis(a)])
+                       stats.skew(spectrum),
+                       stats.kurtosis(spectrum)])
 
     for i, val in enumerate(values):
         if np.isnan(val):
@@ -141,6 +138,6 @@ def data_preprocessing(file, added_features=False, transform_vectors=False):
 file_path1 = "data/probabilities.json"
 file_path2 = "data/prob_vectors.json"
 
-data_preprocessing(file_path1)
+# data_preprocessing(file_path1)
 data_preprocessing(file_path2, True)
-data_preprocessing(file_path2, True, True)
+

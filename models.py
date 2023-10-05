@@ -1,5 +1,5 @@
 from torch import nn, relu, cat, sigmoid, device, cuda, load as torch_load, no_grad, optim, manual_seed
-from torch import FloatTensor, LongTensor, softmax, max as torch_max, save as torch_save, Generator
+from torch import FloatTensor, LongTensor, softmax, max as torch_max, save as torch_save, Generator, log_softmax
 from torch.utils.data import Dataset, DataLoader
 from math import floor
 from sklearn.model_selection import train_test_split
@@ -11,8 +11,8 @@ from numpy.random import seed as npseed
 
 num_feature = 3
 num_classes = 2
-max_sequence_length = 66
-n_additional_features = 66
+max_sequence_length = 57
+n_additional_features = 57
 cuda.manual_seed(0)
 manual_seed(0)
 seed(0)
@@ -222,7 +222,6 @@ class MultiNN(NN):
 
         # CNN layers definition
         self.max_pools = nn.ModuleList()
-        self.avg_pools = nn.ModuleList()
         self.convolutions = nn.ModuleList()
 
         for kernel in self.kernels:
@@ -233,8 +232,6 @@ class MultiNN(NN):
                           padding=self.padding
                           ).to(self.device)
             self.convolutions.append(x)
-            y = nn.AvgPool1d(kernel_size=kernel, stride=self.stride).to(self.device)
-            self.avg_pools.append(y)
             z = nn.MaxPool1d(kernel_size=kernel, stride=self.stride).to(self.device)
             self.max_pools.append(z)
 
@@ -267,10 +264,8 @@ class MultiNN(NN):
         for i, k in enumerate(self.kernels):
             z = self.convolutions[i](x)
             z = relu(z)
-            z1 = self.avg_pools[i](z)
-            z2 = self.max_pools[i](z)
-            cnn_outs.append(z1)
-            cnn_outs.append(z2)
+            z = self.max_pools[i](z)
+            cnn_outs.append(z)
 
         # rnn
         y = x.swapaxes(0, 2).swapaxes(1, 2)
@@ -282,6 +277,7 @@ class MultiNN(NN):
         cnn_outs = cnn_outs.reshape(cnn_outs.size(0), -1)
         cnn_outs = self.cnn_fc(cnn_outs)
 
+        # compile added features
         add_out = self.add_fc(add[:, :n_additional_features-self.num_channels])
 
         # flatten rnn features
@@ -295,9 +291,7 @@ class MultiNN(NN):
             out = relu(out)
             out = fc(out)
 
-        out = self.dropout(out)
-        out = sigmoid(out)
-
+        # out = log_softmax(out, dim=1)
         return out.squeeze()
 
     def pack_features(self, arr):
@@ -379,8 +373,8 @@ class MultiNN(NN):
     def cnn_out_features(self):
         out_pools = []
         for i, kernel in enumerate(self.kernels):
-            x = ((self.seq_len - 1 * (self.kernels[i] - 1) - 1) / self.stride) + 1
-            y = ((floor(x) - 1 * (self.kernels[i] - 1) - 1) / self.stride) + 1
-            out_pools.append(floor(y))
+            conv_out_size = ((self.seq_len - self.kernels[i]) / self.stride) + 1
+            pool_out_size = ((floor(conv_out_size) - self.kernels[i]) / self.stride) + 1
+            out_pools.append(floor(pool_out_size))
 
-        return (sum(out_pools)*2) * self.cnn_features + self.padding * self.cnn_features
+        return sum(out_pools) * self.cnn_features + self.padding * self.cnn_features

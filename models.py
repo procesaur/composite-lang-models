@@ -153,7 +153,7 @@ class Perceptron(NN):
 
                 self.eval()
 
-                for x_val_batch, y_val_batch in test_loader:
+                for x_val_batch, y_val_batch in val_loader:
                     x_val_batch, y_val_batch = x_val_batch.to(self.device), y_val_batch.to(self.device)
 
                     y_val_predictions.append(self(x_val_batch))
@@ -339,7 +339,7 @@ class MultiNN(NN):
             with no_grad():
 
                 self.eval()
-                for x_val_batch, y_val_batch in test_loader:
+                for x_val_batch, y_val_batch in val_loader:
                     x_val_batch, y_val_batch = x_val_batch.to(self.device), y_val_batch.to(self.device)
 
                     y_val_predictions.append(self(x_val_batch).unsqueeze(0))

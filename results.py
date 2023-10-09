@@ -1,4 +1,5 @@
 from json import load
+# import numpy as np
 
 
 def avg(lst):
@@ -13,6 +14,26 @@ res_file = "data/results.json"
 
 
 def results():
+    with open(res_file, "r") as jf:
+        results = load(jf)
+
+    for test in ["test0", "test1"]:
+        for i in range(5):
+            rr = ["fold "+str(i+1)]
+            for model in results:
+                rr.append("{:.4f}".format(round(results[model][test][i], 4)))
+            print("&".join(rr)+"\\\\")
+        print("\midrule")
+        av = ["$\mu$"]
+        ma = ["$Max$"]
+        for model in results:
+            ma.append("{:.4f}".format(round(max(results[model][test]), 4)))
+            av.append("{:.4f}".format(round(avg(results[model][test]), 4)))
+        print("&".join(ma) + "\\\\")
+        print("&".join(av) + "\\\\")
+
+
+def results1():
     with open(res_file, "r") as jf:
         results = load(jf)
 
@@ -34,3 +55,4 @@ def results():
 
 
 results()
+results1()

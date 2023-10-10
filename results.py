@@ -1,9 +1,31 @@
 from json import load
-# import numpy as np
+import numpy as np
+from scipy.stats import t as t_dist
 
 
 def avg(lst):
     return round(sum(lst)/len(lst), 4)
+
+
+def paired_t_test_old(p):
+    mean = np.mean(p)
+    n = len(p)
+    den = np.sqrt(sum([(diff - mean) ** 2 for diff in p]) / (n - 1))
+    t = (mean * (n ** (1 / 2))) / den
+    p_value = t_dist.sf(t, n - 1) * 2
+    return t, p_value
+
+
+def paired_t_test(diff, n1=47012, n2=5224):
+    n = n1 + n2
+    diff = np.array(diff)
+    mean = np.mean(diff)
+    sigma2 = np.var(diff)
+    mod = 1/len(diff) + n2/n1
+    sigma2_mod = sigma2 * mod
+    tt = mean/np.sqrt(sigma2_mod)
+    pval = t_dist.sf(tt, n - 1) * 2
+    return tt, pval
 
 
 baseline = ["m0", "m1", "m2"]
@@ -54,5 +76,27 @@ def results1():
         print("full err decrease: ", round(1-(1-acc2)/base_err, 4))
 
 
+def results2():
+    with open(res_file, "r") as jf:
+        results = load(jf)
+
+    for test in tests:
+        print(test)
+
+        perceptron_inc = []
+        full_inc = []
+
+        for i in range(5):
+            base_max = max([results[b][test][i] for b in baseline])
+            perceptron_inc.append(results["perceptron"][test][i]-base_max)
+            full_inc.append(results["full"][test][i]-base_max)
+
+        t, p = paired_t_test(perceptron_inc)
+        print(f"perceptron t statistic: {round(t,4)}, p-value: {round(p,4)}")
+        t, p = paired_t_test(full_inc)
+        print(f"full t statistic: {round(t,4)}, p-value: {round(p,4)}")
+
+
 results()
 results1()
+results2()

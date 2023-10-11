@@ -16,8 +16,9 @@ def paired_t_test_old(p):
     return t, p_value
 
 
-def paired_t_test(diff, n1=47012, n2=5224):
-    n = n1 + n2
+def paired_t_test(diff, n, ratio):
+    n1 = round(n*ratio)
+    n2 = n-n1
     diff = np.array(diff)
     mean = np.mean(diff)
     sigma2 = np.var(diff)
@@ -30,9 +31,11 @@ def paired_t_test(diff, n1=47012, n2=5224):
 
 baseline = ["m0", "m1", "m2"]
 tests = ["test0", "test1"]
-
+samples = 52236
+ratio = 0.2
 
 res_file = "data/results.json"
+duplicates_file = "data/duplicates.json"
 
 
 def results():
@@ -80,8 +83,12 @@ def results2():
     with open(res_file, "r") as jf:
         results = load(jf)
 
-    for test in tests:
+    with open(duplicates_file, "r") as jf:
+        duplicates = load(jf)
+
+    for i, test in enumerate(tests):
         print(test)
+        n_duplicates = len(duplicates[str(i)])
 
         perceptron_inc = []
         full_inc = []
@@ -91,9 +98,9 @@ def results2():
             perceptron_inc.append(results["perceptron"][test][i]-base_max)
             full_inc.append(results["full"][test][i]-base_max)
 
-        t, p = paired_t_test(perceptron_inc)
+        t, p = paired_t_test(perceptron_inc, samples-n_duplicates, ratio)
         print(f"perceptron t statistic: {round(t,4)}, p-value: {round(p,4)}")
-        t, p = paired_t_test(full_inc)
+        t, p = paired_t_test(full_inc, samples-n_duplicates, ratio)
         print(f"full t statistic: {round(t,4)}, p-value: {round(p,4)}")
 
 
